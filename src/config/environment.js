@@ -14,7 +14,9 @@ const requiredKeys = [
   'PROSPEO_API_KEY',
   'EAZYREACH_API_KEY',
   'BREVO_API_KEY',
-  'BREVO_SENDER_EMAIL'
+  'BREVO_SENDER_EMAIL',
+  'BREVO_SENDER_NAME'
+
 ];
 
 // Validate critical keys on boot to ensure fast failure

@@ -11,7 +11,7 @@ export async function getLookalikeCompanies(seedDomain) {
     const response = await axios.post(
       "https://api.ocean.io/v3/search/companies",
       {
-        size: 10,
+        size: 3,
         companiesFilters: {
           lookalikeDomains: [seedDomain]
         }

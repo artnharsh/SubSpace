@@ -2,66 +2,204 @@ import axios from 'axios';
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 
+const sleep = (ms) =>
+  new Promise(resolve => setTimeout(resolve, ms));
+
 /**
- * Stage 4: Sends highly personalized transactional emails via Brevo
- * @param {Array} approvedLeads - Array of contacts validated by the user at the checkpoint
+ * Stage 4: Send personalized outreach emails via Brevo
+ * Only verified emails are allowed through.
  */
 export async function sendOutreachEmails(approvedLeads) {
-  logger.stage(5, 'Brevo Transactional Email Delivery');
-  logger.info(`Initiating delivery sequence for ${approvedLeads.length} authorized contacts...`);
+  logger.stage(4, 'Brevo Transactional Email Delivery');
+
+  if (!approvedLeads || approvedLeads.length === 0) {
+    logger.warn(
+      'No approved leads available for email delivery.'
+    );
+    return;
+  }
+
+  const seenEmails = new Set();
+
+  const sendableLeads = approvedLeads.filter(
+    lead =>
+      lead.email &&
+      lead.emailStatus === 'VERIFIED'
+  );
+
+  logger.info(
+    `Preparing delivery sequence for ${sendableLeads.length} verified contacts...`
+  );
 
   let successCount = 0;
 
-  for (const lead of approvedLeads) {
-    // Isolate first name safely for personalization tokens
-    const firstName = lead.name.split(' ')[0] || 'there';
-    const companyName = lead.domain.split('.')[0].toUpperCase();
-
-    // Concise, professional cold outreach template design
-    const emailSubject = `Partnership Query for ${companyName}`;
-    const htmlContent = `
-      <p>Hi ${firstName},</p>
-      <p>I noticed your work as <strong>${lead.title}</strong> at ${companyName}. I wanted to reach out because we've built an automation workflow tailored directly for high-growth tech firms.</p>
-      <p>Would you be open to a brief 5-minute sync later this week to see how we can optimize your team's pipeline velocity?</p>
-      <p>Best regards,<br>${config.brevoSenderName}</p>
-    `;
-
-    // Handle sandbox tracking seamlessly to protect your real monthly limits
-    if (config.brevoApiKey === 'mock_brevo') {
-      logger.success(`[MOCK SEND] Email successfully routed to ${lead.name} (${lead.email})`);
-      successCount++;
-      continue;
-    }
-
+  for (const lead of sendableLeads) {
     try {
-      logger.info(`Dispatching email to: ${lead.email}...`);
-      
+      if (seenEmails.has(lead.email)) {
+        logger.warn(
+          `Duplicate email skipped: ${lead.email}`
+        );
+        continue;
+      }
+
+      seenEmails.add(lead.email);
+
+      const firstName =
+        lead.name?.split(' ')[0] || 'there';
+
+      const companyName =
+        lead.domain?.split('.')[0] || 'your company';
+
+      const emailSubject =
+        `Quick question about ${companyName}`;
+
+      const htmlContent = `
+        <p>Hi ${firstName},</p>
+
+        <p>
+          I came across your work as
+          <strong>${lead.title}</strong>
+          at <strong>${companyName}</strong>.
+        </p>
+
+        <p>
+          I've been building workflow automation systems
+          that help teams eliminate repetitive manual
+          processes and improve operational efficiency.
+        </p>
+
+        <p>
+          Would you be open to a brief conversation
+          sometime this week?
+        </p>
+
+        <p>
+          Looking forward to hearing from you.
+        </p>
+
+        <p>
+          Best regards,<br/>
+          ${config.brevoSenderName}
+        </p>
+      `;
+
+      /**
+       * TEST MODE
+       */
+      if (config.testRecipient) {
+        logger.info(
+          `[TEST MODE] Redirecting email for ${lead.name} -> ${config.testRecipient}`
+        );
+
+        await axios.post(
+          'https://api.brevo.com/v3/smtp/email',
+          {
+            sender: {
+              name: config.brevoSenderName,
+              email: config.brevoSenderEmail
+            },
+            to: [
+              {
+                email: config.testRecipient,
+                name: 'Pipeline Test'
+              }
+            ],
+            subject: `[TEST] ${emailSubject}`,
+            htmlContent
+          },
+          {
+            headers: {
+              'api-key': config.brevoApiKey,
+              'Content-Type': 'application/json'
+            },
+            timeout: 10000
+          }
+        );
+
+        logger.success(
+          `Test email delivered successfully.`
+        );
+
+        successCount++;
+
+        await sleep(1000);
+
+        continue;
+      }
+
+      /**
+       * MOCK MODE
+       */
+      if (config.brevoApiKey === 'mock_brevo') {
+        logger.success(
+          `[MOCK SEND] ${lead.name} (${lead.email})`
+        );
+
+        successCount++;
+
+        continue;
+      }
+
+      /**
+       * REAL DELIVERY
+       */
+      logger.info(
+        `Sending outreach email to ${lead.email}`
+      );
+
       await axios.post(
         'https://api.brevo.com/v3/smtp/email',
         {
-          sender: { name: config.brevoSenderName, email: config.brevoSenderEmail },
-          to: [{ email: lead.email, name: lead.name }],
+          sender: {
+            name: config.brevoSenderName,
+            email: config.brevoSenderEmail
+          },
+          to: [
+            {
+              email: lead.email,
+              name: lead.name
+            }
+          ],
           subject: emailSubject,
-          htmlContent: htmlContent
+          htmlContent
         },
         {
           headers: {
             'api-key': config.brevoApiKey,
             'Content-Type': 'application/json'
           },
-          timeout: 8000
+          timeout: 10000
         }
       );
 
-      logger.success(`Outreach successfully delivered to ${lead.name}.`);
+      logger.success(
+        `Email delivered successfully to ${lead.name}`
+      );
+
       successCount++;
 
+      await sleep(1000);
+
     } catch (error) {
-      // Resilience guard: Ensure an individual delivery failure won't stop other emails from flying
-      logger.error(`Failed to deliver email message to ${lead.email}. Skipping contact entry.`, error);
+      logger.error(
+        `Failed delivery for ${lead.email}`
+      );
+
+      if (error.response?.data) {
+        console.log(
+          JSON.stringify(
+            error.response.data,
+            null,
+            2
+          )
+        );
+      }
     }
   }
 
   logger.divider();
-  logger.success(`Delivery sequence complete. Successfully dispatched ${successCount}/${approvedLeads.length} emails.`);
+
+  logger.success(
+    `Delivery sequence completed. Successfully sent ${successCount}/${sendableLeads.length} emails.`
+  );
 }
