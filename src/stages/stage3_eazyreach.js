@@ -92,6 +92,17 @@ export async function enrichEmails(leads) {
             2
           )
         );
+
+        if (
+          error.response.data.error_code ===
+          'Rate limit exceeded'
+        ) {
+          logger.warn(
+            'Rate limit reached. Waiting 60 seconds before continuing...'
+          );
+
+          await sleep(60000);
+        }
       }
     }
   }

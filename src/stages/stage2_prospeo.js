@@ -104,7 +104,7 @@ export async function getDecisionMakers(domains) {
         `Skipping domain [${domain}] due to request error.`
       );
 
-      if (error.response) {
+      if (error.response?.data) {
         console.log(
           JSON.stringify(
             error.response.data,
@@ -114,17 +114,15 @@ export async function getDecisionMakers(domains) {
         );
 
         if (
-          error.response.data?.error_code ===
+          error.response.data.error_code ===
           'Rate limit exceeded'
         ) {
           logger.warn(
-            'Rate limit detected. Sleeping for 5 seconds...'
+            'Rate limit reached. Waiting 60 seconds before continuing...'
           );
 
-          await sleep(5000);
+          await sleep(60000);
         }
-      } else {
-        console.log(error.message);
       }
     }
   }

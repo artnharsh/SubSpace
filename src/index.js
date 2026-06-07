@@ -49,8 +49,9 @@ async function runMasterPipeline() {
      * STAGE 2
      * Prospeo Search
      */
-    const identifiedLeads =
-      await (getDecisionMakers(targetDomains).slice(0, 5));
+    const leads = await getDecisionMakers(targetDomains);
+
+const identifiedLeads = leads.slice(0, 5);
 
     logger.divider();
 
