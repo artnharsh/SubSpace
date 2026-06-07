@@ -71,7 +71,6 @@ Create a `.env` file in the project root:
 ```env
 OCEAN_API_KEY=your_ocean_api_key
 PROSPEO_API_KEY=your_prospeo_api_key
-EAZYREACH_API_KEY=mock_key_until_whatsapp_reply
 BREVO_API_KEY=your_brevo_api_key
 BREVO_SENDER_EMAIL=you@yourdomain.com
 BREVO_SENDER_NAME=Your Name
@@ -85,7 +84,6 @@ Required by the current config loader:
 
 - `OCEAN_API_KEY`
 - `PROSPEO_API_KEY`
-- `EAZYREACH_API_KEY`
 - `BREVO_API_KEY`
 - `BREVO_SENDER_EMAIL`
 - `BREVO_SENDER_NAME`
