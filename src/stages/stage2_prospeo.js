@@ -2,80 +2,136 @@ import axios from 'axios';
 import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 
-/**
- * Stage 2: Finds C-suite and VP-level decision makers for a list of company domains
- * @param {string[]} domains - Array of company domains to research
- * @returns {Promise<Array>} List of structured target lead objects
- */
+const sleep = (ms) =>
+  new Promise(resolve => setTimeout(resolve, ms));
+
 export async function getDecisionMakers(domains) {
-  logger.info(`Initializing Prospeo lead mining across ${domains.length} target domains...`);
+  logger.info(
+    `Initializing Prospeo lead mining across ${domains.length} target domains...`
+  );
+
   const allLeads = [];
 
-  const allowedSeniorities = ['c-level', 'vp', 'director']; 
+  const executiveKeywords = [
+    'ceo',
+    'cto',
+    'cfo',
+    'coo',
+    'chief',
+    'founder',
+    'owner',
+    'president',
+    'vp',
+    'vice president',
+    'director',
+    'head'
+  ];
 
   for (const domain of domains) {
     try {
       logger.info(`Searching contacts for: ${domain}`);
 
-      // Updated to the correct Prospeo v2 production endpoint
       const response = await axios.post(
-        'https://api.prospeo.io/v2/domain-search',
-        { domain: domain },
+        'https://api.prospeo.io/search-person',
+        {
+          page: 1,
+          filters: {
+            company: {
+              websites: {
+                include: [domain]
+              }
+            }
+          }
+        },
         {
           headers: {
             'X-KEY': config.prospeoApiKey,
             'Content-Type': 'application/json'
           },
-          timeout: 10000
+          timeout: 15000
         }
       );
 
-      // Prospeo v2 returns company information and an array of leads inside response data
-      const contacts = response.data?.response?.leads || response.data?.response?.email_list || [];
-      let filteredCount = 0;
+      const results = response.data?.results || [];
 
-      for (const contact of contacts) {
-        const title = (contact.title || '').toLowerCase();
-        const role = (contact.seniority || '').toLowerCase();
+      let qualifiedLeads = 0;
 
-        // Strict assignment constraint: Target only C-suite and VP leadership tiers[cite: 1]
-        const isCSuiteOrVP = allowedSeniorities.some(level => role.includes(level)) || 
-                             title.includes('ceo') || 
-                             title.includes('cto') || 
-                             title.includes('cfo') || 
-                             title.includes('vice president') || 
-                             title.includes('vp');
+      for (const item of results) {
+        const person = item?.person;
 
-        if (isCSuiteOrVP && contact.linkedin) {
-          allLeads.push({
-            domain: domain,
-            name: `${contact.first_name || ''} ${contact.last_name || ''}`.trim(),
-            title: contact.title || 'Executive',
-            linkedin: contact.linkedin
-          });
-          filteredCount++;
-        }
+        if (!person) continue;
+
+        const title = (
+          person.current_job_title || ''
+        ).toLowerCase();
+
+        const isExecutive = executiveKeywords.some(
+          keyword => title.includes(keyword)
+        );
+
+        if (!isExecutive) continue;
+
+        allLeads.push({
+          domain,
+
+          personId: person.person_id,
+
+          name:
+            person.full_name ||
+            `${person.first_name || ''} ${person.last_name || ''}`.trim(),
+
+          title:
+            person.current_job_title ||
+            'Unknown',
+
+          linkedin:
+            person.linkedin_url || null,
+
+          emailStatus:
+            person.email?.status || 'UNKNOWN'
+        });
+
+        qualifiedLeads++;
       }
 
-      logger.success(`Extracted ${filteredCount} verified C-suite/VP profiles from ${domain}.`);
+      logger.success(
+        `Found ${qualifiedLeads} executive contacts from ${domain}`
+      );
 
+      await sleep(1500);
     } catch (error) {
-      // Critical Requirement: Isolated domain failure handles gracefully without breaking the batch run[cite: 1]
-      logger.error(`Skipping domain [${domain}] due to request error. Continuing data loop.`, error);
+      logger.error(
+        `Skipping domain [${domain}] due to request error.`
+      );
+
+      if (error.response) {
+        console.log(
+          JSON.stringify(
+            error.response.data,
+            null,
+            2
+          )
+        );
+
+        if (
+          error.response.data?.error_code ===
+          'Rate limit exceeded'
+        ) {
+          logger.warn(
+            'Rate limit detected. Sleeping for 5 seconds...'
+          );
+
+          await sleep(5000);
+        }
+      } else {
+        console.log(error.message);
+      }
     }
   }
 
-  // Fallback Check: If real API results are empty due to dynamic account limits, use fallback data to maintain pipeline flow
-  if (allLeads.length === 0) {
-    logger.warn('Prospeo production query returned 0 active leads for these domains.');
-    logger.info('Activating data-resiliency fallback array to maintain pipeline momentum...');
-    return [
-      { domain: 'linear.app', name: 'Karri Saarinen', title: 'CEO', linkedin: 'https://linkedin.com/in/karrisaarinen' },
-      { domain: 'vercel.com', name: 'Guillermo Rauch', title: 'CEO', linkedin: 'https://linkedin.com/in/rauchg' },
-      { domain: 'supabase.com', name: 'Paul Copplestone', title: 'CEO', linkedin: 'https://linkedin.com/in/paulcopplestone' }
-    ];
-  }
+  logger.success(
+    `Stage 2 Complete. Total qualified leads mined: ${allLeads.length}`
+  );
 
-  logger.success(`Stage 2 Complete. Total qualified leads mined: ${allLeads.length}`);
   return allLeads;
 }

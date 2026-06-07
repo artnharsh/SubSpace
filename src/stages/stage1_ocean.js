@@ -1,18 +1,15 @@
-import axios from 'axios';
-import { config } from '../config/environment.js';
-import { logger } from '../utils/logger.js';
+import axios from "axios";
+import { config } from "../config/environment.js";
+import { logger } from "../utils/logger.js";
 
-/**
- * Stage 1: Fetches lookalike company domains using Ocean.io v3 Engine
- * @param {string} seedDomain - The core company domain to find lookalikes for
- * @returns {Promise<string[]>} A clean list of lookalike company domains
- */
 export async function getLookalikeCompanies(seedDomain) {
-  logger.info(`Querying Ocean.io v3 Search for lookalike companies matching: "${seedDomain}"...`);
+  logger.info(
+    `Querying Ocean.io v3 for live lookalikes matching: "${seedDomain}"...`
+  );
 
   try {
     const response = await axios.post(
-      'https://api.ocean.io/v3/search/companies', 
+      "https://api.ocean.io/v3/search/companies",
       {
         size: 10,
         companiesFilters: {
@@ -21,30 +18,57 @@ export async function getLookalikeCompanies(seedDomain) {
       },
       {
         headers: {
-          'X-Api-Token': config.oceanApiKey,
-          'Content-Type': 'application/json'
+          "X-Api-Token": config.oceanApiKey,
+          "Content-Type": "application/json"
         },
-        timeout: 10000
+        timeout: 15000
       }
     );
 
-    let domains = [];
-    if (response.data && Array.isArray(response.data.companies)) {
-      domains = response.data.companies.map(company => company.domain).filter(Boolean);
+    const companies = response.data?.companies;
+
+    if (!Array.isArray(companies)) {
+      logger.error(
+        "Ocean.io response schema mismatch. Expected companies array."
+      );
+
+      console.log(
+        JSON.stringify(response.data, null, 2)
+      );
+
+      return [];
     }
 
-    // Fallback Check: If account configuration limits return 0 records, inject common lookalikes
-    if (domains.length === 0) {
-      logger.warn(`Ocean.io API returned 0 global results for [${seedDomain}] due to account tier filters.`);
-      logger.info('Activating data-resiliency fallback array to maintain pipeline momentum...');
-      domains = ['linear.app', 'vercel.com', 'supabase.com', 'posthog.com'];
-    }
+    const domains = [
+      ...new Set(
+        companies
+          .map(item => item?.company?.domain)
+          .filter(Boolean)
+      )
+    ];
 
-    logger.success(`Stage 1 complete. Proceeding with ${domains.length} lookalike domains.`);
+    logger.success(
+      `Ocean.io successfully discovered ${domains.length} lookalike companies`
+    );
+
+    logger.info(
+      `Domains Found: ${domains.join(", ")}`
+    );
+
     return domains;
-
   } catch (error) {
-    logger.error('Failed to execute Stage 1 lookalike acquisition production run. Dropping to fallback.', error);
-    return ['linear.app', 'vercel.com', 'supabase.com', 'posthog.com'];
+    logger.error(
+      `Ocean.io request failed: ${
+        error.response?.status || error.message
+      }`
+    );
+
+    if (error.response?.data) {
+      console.log(
+        JSON.stringify(error.response.data, null, 2)
+      );
+    }
+
+    return [];
   }
 }

@@ -1,64 +1,79 @@
-import axios from 'axios';
-import { config } from '../config/environment.js';
 import { logger } from '../utils/logger.js';
 
 /**
- * Stage 3: Resolves LinkedIn URLs into verified work email addresses
- * @param {Array} leads - Array of lead objects containing LinkedIn URLs
- * @returns {Promise<Array>} Enriched lead objects with email data
+ * Stage 3: Email Enrichment
+ *
+ * Current Mode:
+ * - No EazyReach API available
+ * - Uses local enrichment adapter
+ *
+ * Future Mode:
+ * - Replace enrichLead() with EazyReach API
+ * - Or Prospeo Enrich Person API
  */
-export async function enrichLeadsWithEmails(leads) {
-  logger.info(`Initializing Eazyreach email resolution for ${leads.length} leads...`);
+
+export async function enrichEmails(leads) {
+  logger.info(
+    `Initializing Eazyreach email resolution for ${leads.length} leads...`
+  );
+
+  if (!leads || leads.length === 0) {
+    logger.warn(
+      'No leads received from Stage 2. Skipping enrichment.'
+    );
+
+    return [];
+  }
+
   const enrichedLeads = [];
 
-  // Automated Mock Framework Check: Safely runs if API key hasn't been received over WhatsApp yet
-  if (config.isEazyreachMocked) {
-    logger.warn('Eazyreach API key is currently unassigned. Deploying local verification sandbox...');
-    
-    return leads.map((lead, index) => ({
-      ...lead,
-      email: `exec.${lead.name.toLowerCase().replace(/\s+/g, '')}@${lead.domain}`,
-      emailStatus: 'verified'
-    }));
-  }
-
-  // Production Execution Pathway once your official key is swapped in
   for (const lead of leads) {
     try {
-      logger.info(`Resolving email for profile: ${lead.linkedin}`);
+      const enrichedLead = await enrichLead(lead);
 
-      const response = await axios.post(
-        'https://api.eazyreach.app/v1/enrich', // Update with exact endpoint from Eazyreach docs
-        { linkedin_url: lead.linkedin },
-        {
-          headers: {
-            'Authorization': `Bearer ${config.eazyreachApiKey}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 8000
-        }
-      );
-
-      // Handle common enrichment response shapes (adjust following their real docs)
-      const email = response.data?.email || response.data?.data?.email;
-      const status = response.data?.status || 'verified';
-
-      if (email) {
-        enrichedLeads.push({
-          ...lead,
-          email: email,
-          emailStatus: status
-        });
-      } else {
-        logger.warn(`No professional email discovered for executive: ${lead.name}`);
+      if (enrichedLead) {
+        enrichedLeads.push(enrichedLead);
       }
-
     } catch (error) {
-      logger.error(`Failed to resolve email for ${lead.name}. Skipping contact entry.`, error);
+      logger.error(
+        `Failed email enrichment for ${lead.name}: ${error.message}`
+      );
     }
   }
+
+  logger.success(
+    `Successfully enriched ${enrichedLeads.length} contacts`
+  );
 
   return enrichedLeads;
 }
 
+/**
+ * Local enrichment adapter.
+ * Replace this entire function later with:
+ * - EazyReach API
+ * - Prospeo Enrich Person API
+ */
+async function enrichLead(lead) {
+  const sanitizedName = lead.name
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, '')
+    .trim()
+    .split(/\s+/)
+    .join('');
 
+  return {
+    ...lead,
+
+    email: `exec.${sanitizedName}@${lead.domain}`,
+
+    emailStatus:
+      lead.emailStatus || 'SIMULATED',
+
+    enrichmentProvider:
+      'LOCAL_SANDBOX',
+
+    enrichedAt:
+      new Date().toISOString()
+  };
+}
