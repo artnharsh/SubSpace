@@ -1,5 +1,6 @@
 import { config } from './config/environment.js';
 import { logger } from './utils/logger.js';
+import inquirer from 'inquirer';
 
 import { getLookalikeCompanies } from './stages/stage1_ocean.js';
 import { getDecisionMakers } from './stages/stage2_prospeo.js';
@@ -17,13 +18,48 @@ import {
 async function runMasterPipeline() {
   try {
     logger.stage(
-      0,
-      'Initializing Production Automated Outreach Pipeline'
-    );
+  0,
+  'Initializing Production Automated Outreach Pipeline'
+);
 
-    logger.info(
-      `Target Seed Domain Input: "${config.seedDomain}"`
-    );
+if (config.demoMode) {
+  logger.warn(
+    '======================================'
+  );
+
+  logger.warn(
+    'RUNNING IN DEMO MODE'
+  );
+
+  logger.warn(
+    'External APIs are bypassed'
+  );
+
+  logger.warn(
+    '======================================'
+  );
+}
+
+let seedDomain = process.argv[2];
+
+if (!seedDomain) {
+  const answer = await inquirer.prompt([
+    {
+      type: 'input',
+      name: 'domain',
+      message: 'Enter a company domain:',
+      validate: input =>
+        input.trim().length > 0 ||
+        'Domain is required'
+    }
+  ]);
+
+  seedDomain = answer.domain.trim();
+}
+
+logger.info(
+  `Target Seed Domain Input: "${seedDomain}"`
+);
 
     logger.divider();
 
@@ -32,7 +68,7 @@ async function runMasterPipeline() {
      * Ocean.io
      */
     const rawDomains =
-      await getLookalikeCompanies(config.seedDomain);
+  await getLookalikeCompanies(seedDomain);
 
     const targetDomains =
       deduplicateArray(rawDomains).slice(0, 3);

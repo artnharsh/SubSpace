@@ -34,6 +34,7 @@ export const config = {
   brevoApiKey: process.env.BREVO_API_KEY,
   brevoSenderEmail: process.env.BREVO_SENDER_EMAIL,
   brevoSenderName: process.env.BREVO_SENDER_NAME || 'Harshal',
+  demoMode: process.env.DEMO_MODE === 'true',
   
   // Track state of Eazyreach API mode
   // Track state of Eazyreach API mode

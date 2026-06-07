@@ -6,6 +6,28 @@ const sleep = (ms) =>
   new Promise(resolve => setTimeout(resolve, ms));
 
 export async function enrichEmails(leads) {
+
+  if (config.demoMode) {
+  logger.warn(
+    'DEMO MODE ENABLED - Returning mock enriched contacts'
+  );
+
+  return leads.map((lead, index) => ({
+    ...lead,
+
+    email: [
+      'akhil.joshi@razorpay.com',
+      'neeraj.bagdia@cashfree.com',
+      'tim.mcdonnell@adyen.com'
+    ][index],
+
+    emailStatus: 'VERIFIED',
+
+    enrichmentProvider:
+      'DEMO_PROVIDER'
+  }));
+}
+
   logger.info(
     `Initializing Prospeo Enrichment for ${leads.length} leads...`
   );

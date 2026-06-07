@@ -33,6 +33,24 @@ export async function sendOutreachEmails(approvedLeads) {
 
   let successCount = 0;
 
+  if (config.demoMode) {
+  logger.warn(
+    'DEMO MODE ENABLED - Simulating email delivery'
+  );
+
+  approvedLeads.forEach(lead => {
+    logger.success(
+      `[DEMO SEND] Email delivered to ${lead.name} (${lead.email})`
+    );
+  });
+
+  logger.success(
+    `Delivery sequence completed. Successfully sent ${approvedLeads.length}/${approvedLeads.length} emails.`
+  );
+
+  return;
+}
+
   for (const lead of sendableLeads) {
     try {
       if (seenEmails.has(lead.email)) {

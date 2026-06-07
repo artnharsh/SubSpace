@@ -6,6 +6,37 @@ const sleep = (ms) =>
   new Promise(resolve => setTimeout(resolve, ms));
 
 export async function getDecisionMakers(domains) {
+
+  if (config.demoMode) {
+  logger.warn(
+    'DEMO MODE ENABLED - Returning mock executives'
+  );
+
+  return [
+    {
+      domain: 'razorpay.com',
+      personId: 'demo-001',
+      name: 'Akhil Joshi',
+      title: 'Associate Director',
+      linkedin: 'https://linkedin.com/in/demo1'
+    },
+    {
+      domain: 'cashfree.com',
+      personId: 'demo-002',
+      name: 'Neeraj Bagdia',
+      title: 'Vice President',
+      linkedin: 'https://linkedin.com/in/demo2'
+    },
+    {
+      domain: 'adyen.com',
+      personId: 'demo-003',
+      name: 'Tim McDonnell',
+      title: 'Chief Revenue Officer',
+      linkedin: 'https://linkedin.com/in/demo3'
+    }
+  ];
+}
+
   logger.info(
     `Initializing Prospeo lead mining across ${domains.length} target domains...`
   );
